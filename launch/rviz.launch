@@ -1,0 +1,4 @@
+<launch>
+    <node type="rviz" name="rviz_nissan" pkg="rviz" args="-d $(find pointcloud_to_grid)/doc/default.rviz" />
+</launch>
+
