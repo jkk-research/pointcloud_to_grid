@@ -55,8 +55,9 @@ void pointcloudCallback(const pcl::PCLPointCloud2 &msg)
   // -128 127 int8[] data
   std::vector<signed char> hpoints(grid_map.cell_num_x * grid_map.cell_num_y);
   std::vector<signed char> ipoints(grid_map.cell_num_x * grid_map.cell_num_y);
-  for (auto p : hpoints){p = -128;}
-  for (auto p : ipoints){p = -128;}
+  // initialize grid vectors: -128
+  for (auto& p : hpoints){p = -128;}
+  for (auto& p : ipoints){p = -128;}
   //for (int i = 0; i < out_cloud.points.size(); ++i) // out_cloud.points[i].x instead of out_point.x
   for (auto out_point : out_cloud)
   {
