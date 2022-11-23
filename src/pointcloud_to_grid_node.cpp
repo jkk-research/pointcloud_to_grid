@@ -26,9 +26,7 @@ PointXY getIndex(double x, double y){
 float GridMap::get_Offset(int ring)
 {
   int actual_ring = 128 - ring;
-  if(actual_ring < 50)
-    return 0;
-  
+    
   float offset_on_ring = ranges[actual_ring];
 
   return offset_on_ring / cell_size;
