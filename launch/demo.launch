@@ -12,12 +12,12 @@
     <!--
     <param name="cloud_in_topic" value="/os_cloud_node/points"/>
     -->
-    <param name="cloud_in_topic" value="/left_os1/os1_cloud_node/points"/>
+    <param name="cloud_in_topic" value="/filtered_points"/>
     <!--
     <param name="frame_out" value="os1_sensor"/>
     -->
     <param name="mapi_topic_name" value="lidargrid_i"/>
     <param name="maph_topic_name" value="lidargrid_h"/>
   </node>
-  <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconf" output="screen" />
+  <!-- <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconf" output="screen" /> -->
 </launch>

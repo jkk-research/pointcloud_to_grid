@@ -6,6 +6,7 @@
 #include <pcl/conversions.h>
 #include <pcl_ros/point_cloud.h>
 #include <pointcloud_to_grid/pointcloud_to_grid_core.hpp>
+#include <pointcloud_to_grid/point.h>
 #include <pointcloud_to_grid/MyParamsConfig.h>
 #include <dynamic_reconfigure/server.h>
 
@@ -20,6 +21,18 @@ PointXY getIndex(double x, double y){
   ret.x = int(fabs(x - grid_map.topleft_x) / grid_map.cell_size);
   ret.y = int(fabs(y - grid_map.topleft_y) / grid_map.cell_size);
   return ret;
+}
+
+float GridMap::get_Offset(int ring)
+{
+  int actual_ring = 128 - ring;
+  if(actual_ring < 50)
+    return 0;
+  
+  float offset_on_ring = ranges[actual_ring];
+
+  return offset_on_ring / cell_size;
+
 }
 
 void paramsCallback(my_dyn_rec::MyParamsConfig &config, uint32_t level)
@@ -43,10 +56,8 @@ void paramsCallback(my_dyn_rec::MyParamsConfig &config, uint32_t level)
 }
 
 
-void pointcloudCallback(const pcl::PCLPointCloud2 &msg)
+void pointcloudCallback(const pcl::PointCloud<ouster::Point>::ConstPtr input_cloud)
 {
-  pcl::PointCloud<pcl::PointXYZI> out_cloud;
-  pcl::fromPCLPointCloud2(msg, out_cloud);
   // Initialize grid
   grid_map.initGrid(intensity_grid);
   grid_map.initGrid(height_grid);
@@ -59,7 +70,7 @@ void pointcloudCallback(const pcl::PCLPointCloud2 &msg)
   for (auto& p : hpoints){p = -128;}
   for (auto& p : ipoints){p = -128;}
   //for (int i = 0; i < out_cloud.points.size(); ++i) // out_cloud.points[i].x instead of out_point.x
-  for (auto out_point : out_cloud)
+  for (const auto& out_point : input_cloud->points)
   {
     if (out_point.x > 0.01 || out_point.x < -0.01){
       if (out_point.x > grid_map.bottomright_x && out_point.x < grid_map.topleft_x)
@@ -67,23 +78,42 @@ void pointcloudCallback(const pcl::PCLPointCloud2 &msg)
         if (out_point.y > grid_map.bottomright_y && out_point.y < grid_map.topleft_y)
         {
           PointXY cell = getIndex(out_point.x, out_point.y);
-          if (cell.x < grid_map.cell_num_x && cell.y < grid_map.cell_num_y){
-            ipoints[cell.y * grid_map.cell_num_x + cell.x] = out_point.intensity * grid_map.intensity_factor;
-            hpoints[cell.y * grid_map.cell_num_x + cell.x] = out_point.z * grid_map.height_factor;
+          int longitudinal_offset = grid_map.get_Offset(out_point.ring);
+          longitudinal_offset++;
+
+          for(int i = longitudinal_offset*-1;i <= longitudinal_offset;i++)
+          {
+            float x_off = out_point.x + (i * grid_map.cell_size);
+            float y_off = (out_point.y / out_point.x) * x_off;
+            PointXY off_setted_cell = getIndex(x_off,y_off);
+            if (off_setted_cell.x < grid_map.cell_num_x && off_setted_cell.y < grid_map.cell_num_y){
+              ipoints[off_setted_cell.y * grid_map.cell_num_x + off_setted_cell.x ] = out_point.intensity * grid_map.intensity_factor;
+              hpoints[off_setted_cell.y * grid_map.cell_num_x + off_setted_cell.x ] = out_point.z * grid_map.height_factor;
+            }
+            else{
+              ROS_WARN_STREAM("Cell out of range: " << cell.x << " - " << grid_map.cell_num_x << " ||| " << cell.y << " - " << grid_map.cell_num_y);
+            }
           }
-          else{
-            ROS_WARN_STREAM("Cell out of range: " << cell.x << " - " << grid_map.cell_num_x << " ||| " << cell.y << " - " << grid_map.cell_num_y);
+          if(longitudinal_offset < 1)
+          {
+            if (cell.x < grid_map.cell_num_x && cell.y < grid_map.cell_num_y){
+              ipoints[cell.y * grid_map.cell_num_x + cell.x] = out_point.intensity * grid_map.intensity_factor;
+              hpoints[cell.y * grid_map.cell_num_x + cell.x] = out_point.z * grid_map.height_factor;
+            }
+            else{
+              ROS_WARN_STREAM("Cell out of range: " << cell.x << " - " << grid_map.cell_num_x << " ||| " << cell.y << " - " << grid_map.cell_num_y);
+            }
           }
         }
       }
     }
   }
   intensity_grid->header.stamp = ros::Time::now();
-  intensity_grid->header.frame_id = msg.header.frame_id; // TODO
+  intensity_grid->header.frame_id = input_cloud->header.frame_id; // TODO
   intensity_grid->info.map_load_time = ros::Time::now();
   intensity_grid->data = ipoints;
   height_grid->header.stamp = ros::Time::now();
-  height_grid->header.frame_id = msg.header.frame_id; // TODO
+  height_grid->header.frame_id = input_cloud->header.frame_id; // TODO
   height_grid->info.map_load_time = ros::Time::now();  
   height_grid->data = hpoints;
   pub_igrid.publish(intensity_grid);
