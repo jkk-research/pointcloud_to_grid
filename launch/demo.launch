@@ -16,8 +16,7 @@
     <!--
     <param name="frame_out" value="os1_sensor"/>
     -->
-    <param name="mapi_topic_name" value="lidargrid_i"/>
-    <param name="maph_topic_name" value="lidargrid_h"/>
+    <param name="maph_topic_name" value="occupancy_grid"/>
   </node>
   <!-- <node pkg="rqt_reconfigure" type="rqt_reconfigure" name="rqt_reconf" output="screen" /> -->
 </launch>
