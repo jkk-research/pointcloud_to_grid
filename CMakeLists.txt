@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(pointcloud_to_grid)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++17 -Ofast)
+add_compile_options(-std=c++2a -Ofast)
 
 
 ## Find catkin macros and libraries

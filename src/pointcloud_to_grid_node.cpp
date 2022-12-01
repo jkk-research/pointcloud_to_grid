@@ -1,12 +1,36 @@
 #include <pointcloud_to_grid/pointcloud_to_grid_core.hpp>
 
+float clip(float n, float lower, float upper) {
+  return std::max(lower, std::min(n, upper));
+}
 
-PointXY ROSHandler::getIndex(double x, double y){
+
+int ROSHandler::getIndex(double x, double y){
   PointXY ret;
   ret.x = int(fabs(x - grid_map.topleft_x) / grid_map.cell_size);
   ret.y = int(fabs(y - grid_map.topleft_y) / grid_map.cell_size);
-  return ret;
+
+  return ret.y * grid_map.cell_num_x + ret.x ;
 }
+
+std::vector<int> ROSHandler::getOffset_indexes(int offset_to_make,auto out_point)
+{
+  std::vector<int> indexes_to_fill;
+  for(int i = offset_to_make*-1;i <= offset_to_make;i++)
+  {
+    float x_off = out_point.x + (i * grid_map.cell_size);
+    float y_off = (out_point.y / out_point.x) * x_off;
+    indexes_to_fill.push_back(getIndex(x_off,y_off));
+  }
+
+  return indexes_to_fill;
+}
+
+float dist_from_point(int x,int y)
+{
+  return sqrt(pow(x,2) + pow(y,2));
+}
+
 void ROSHandler::paramsCallback(my_dyn_rec::MyParamsConfig &config, uint32_t level __attribute__((unused)))
 {
 
@@ -34,7 +58,11 @@ float GridMap::get_Offset(int ring)
 
   float offset_on_ring = ranges[actual_ring];
 
-  return offset_on_ring / cell_size;
+  float offset_r = offset_on_ring / cell_size;
+
+  offset_r = clip(offset_r,1,100);
+
+  return offset_r;
 }
 
 ROSHandler::ROSHandler(ros::NodeHandlePtr nh)
@@ -72,55 +100,28 @@ void ROSHandler::pointcloudCallback(const pcl::PointCloud<ouster::Point>::ConstP
 
   for (const auto& out_point : input_cloud->points)
   {
-    if (out_point.x > 0.01 || out_point.x < -0.01){
-      if (out_point.x > grid_map.bottomright_x && out_point.x < grid_map.topleft_x)
-      {
-        if (out_point.y > grid_map.bottomright_y && out_point.y < grid_map.topleft_y)
-        {
-          PointXY cell = getIndex(out_point.x, out_point.y);
-          int longitudinal_offset = grid_map.get_Offset(out_point.ring);
-          longitudinal_offset++;
+    int longitudinal_offset = grid_map.get_Offset(out_point.ring);
 
-          for(int i = longitudinal_offset*-1;i <= longitudinal_offset;i++)
-          {
-            float x_off = out_point.x + (i * grid_map.cell_size);
-            float y_off = (out_point.y / out_point.x) * x_off;
-            PointXY off_setted_cell = getIndex(x_off,y_off);
-            if (off_setted_cell.x < grid_map.cell_num_x && off_setted_cell.y < grid_map.cell_num_y){
-              occ_points[off_setted_cell.y * grid_map.cell_num_x + off_setted_cell.x ] = out_point.intensity * grid_map.intensity_factor;
-            }
-          }
-          if(longitudinal_offset < 1)
-          {
-            if (cell.x < grid_map.cell_num_x && cell.y < grid_map.cell_num_y){
-              occ_points[cell.y * grid_map.cell_num_x + cell.x] = out_point.intensity * grid_map.intensity_factor;
-            }
-          }
-        }
+    std::vector<int> indexes_to_fill = getOffset_indexes(longitudinal_offset,out_point);
+    for(const auto& index : indexes_to_fill)
+    {
+      if (index < occ_points.size()){
+        occ_points[index] = out_point.intensity * grid_map.intensity_factor;
       }
     }
+
   }
 
   for (const auto& out_point : obstacle_points->points)
   {
-    if (out_point.x > 0.01 || out_point.x < -0.01)
-    {
-      if (out_point.x > grid_map.bottomright_x && out_point.x < grid_map.topleft_x)
-      {
-        if (out_point.y > grid_map.bottomright_y && out_point.y < grid_map.topleft_y)
-        {
-          PointXY cell = getIndex(out_point.x, out_point.y);
-          
-          if (cell.x < grid_map.cell_num_x && cell.y < grid_map.cell_num_y){
-            occ_points[cell.y * grid_map.cell_num_x + cell.x ] = 100;
-          }
-        }
-      }
-    }
+    int index = getIndex(out_point.x, out_point.y);
+    
+    if (index < occ_points.size())
+      occ_points[index] = 100;
   }
   
 
-  for(float i = 0;i > -4;i -= grid_map.cell_size)
+  for(float i = 0;i > -5;i -= grid_map.cell_size)
   {
     for(float j = -1.5;j < 1.5;j += grid_map.cell_size)
     {
