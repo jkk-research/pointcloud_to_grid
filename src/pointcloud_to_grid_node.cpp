@@ -5,14 +5,7 @@ float clip(float n, float lower, float upper) {
 }
 
 
-int ROSHandler::getIndex(double &x, double &y)
-{
-  if ((x < grid_map.bottomright_x && x > grid_map.topleft_x) && (y < grid_map.bottomright_y && y > grid_map.topleft_y))
-  {
-    x = 0.0;
-    y = 0.0;
-  }
-
+int ROSHandler::getIndex(double x, double y){
   PointXY ret;
   ret.x = int(fabs(x - grid_map.topleft_x) / grid_map.cell_size);
   ret.y = int(fabs(y - grid_map.topleft_y) / grid_map.cell_size);
