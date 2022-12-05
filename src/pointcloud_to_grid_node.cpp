@@ -5,12 +5,27 @@ float clip(float n, float lower, float upper) {
 }
 
 
-int ROSHandler::getIndex(double x, double y){
+int ROSHandler::getIndex(double &x, double &y)
+{
+  if ((x < grid_map.bottomright_x && x > grid_map.topleft_x) && (y < grid_map.bottomright_y && y > grid_map.topleft_y))
+  {
+    x = 0.0;
+    y = 0.0;
+  }
+
   PointXY ret;
   ret.x = int(fabs(x - grid_map.topleft_x) / grid_map.cell_size);
   ret.y = int(fabs(y - grid_map.topleft_y) / grid_map.cell_size);
 
-  return ret.y * grid_map.cell_num_x + ret.x ;
+  if(ret.x < grid_map.cell_num_x && ret.y < grid_map.cell_num_y)
+    return ret.y * grid_map.cell_num_x + ret.x ;
+  else
+  {
+    ret.x = int(fabs(0 - grid_map.topleft_x) / grid_map.cell_size);
+    ret.y = int(fabs(0 - grid_map.topleft_y) / grid_map.cell_size);
+    return ret.y * grid_map.cell_num_x + ret.x;
+  }
+
 }
 
 std::vector<int> ROSHandler::getOffset_indexes(int offset_to_make,auto out_point)
@@ -18,8 +33,8 @@ std::vector<int> ROSHandler::getOffset_indexes(int offset_to_make,auto out_point
   std::vector<int> indexes_to_fill;
   for(int i = offset_to_make*-1;i <= offset_to_make;i++)
   {
-    float x_off = out_point.x + (i * grid_map.cell_size);
-    float y_off = (out_point.y / out_point.x) * x_off;
+    double x_off = out_point.x + (i * grid_map.cell_size);
+    double y_off = (out_point.y / out_point.x) * x_off;
     indexes_to_fill.push_back(getIndex(x_off,y_off));
   }
 
@@ -115,8 +130,8 @@ void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<
       {
         for(double range = grid_map.ranges[r-1]; range < grid_map.ranges[r+1]; range += resolution_)
         {
-          const double x = range * c;
-          const double y = range * s;
+          double x = range * c;
+          double y = range * s;
           const int index = getIndex(x, y);
 
           if(index < map.size())
@@ -177,7 +192,6 @@ void ROSHandler::pointcloudCallback(const pcl::PointCloud<ouster::Point>::ConstP
   //       occ_points[index] = 0;
   //   }
   // }
-
 
   double beam_num_ = config.beam_number;
   std::vector<std::vector<bool>> beam_list(beam_num_, std::vector<bool>(grid_map.ranges.size(), false));
