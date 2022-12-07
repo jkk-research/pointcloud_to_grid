@@ -128,7 +128,7 @@ class ROSHandler
     void pointcloudCallback(const pcl::PointCloud<ouster::Point>::ConstPtr input_cloud);
     void obstaclePointsCallback(const pcl::PointCloud<ouster::Point>::ConstPtr input_cloud);
 
-    int getIndex(double &x, double &y);
+    int getIndex(double x, double y);
 
     ROSHandler(ros::NodeHandlePtr);
     void paramsCallback(my_dyn_rec::MyParamsConfig &config, uint32_t level);

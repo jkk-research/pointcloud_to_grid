@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(pointcloud_to_grid)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++2a -Ofast)
+add_compile_options(-std=c++2a -Ofast -fconcepts)
 
 
 ## Find catkin macros and libraries
@@ -37,15 +37,14 @@ catkin_package(
   
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
 include_directories(
   include
-  ${catkin_LIBRARIES}
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
-)
-
+  )
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+  
 add_executable(pointcloud_to_grid_node src/pointcloud_to_grid_node.cpp)
 #add_dependencies(pointcloud_to_map_node ${PROJECT_NAME}_gencfg)
 target_link_libraries(pointcloud_to_grid_node ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
