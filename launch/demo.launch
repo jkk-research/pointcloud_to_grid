@@ -6,7 +6,6 @@
     <param name="position_x" value="0"/>
     <param name="position_y" value="0"/>
     <!-- size of a grid cell -->
-    <param name="cell_size" value="1"/>
     <param name="length_x" value="100"/>
     <param name="length_y" value="100"/>
     <!--

@@ -121,7 +121,9 @@ void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<
     {
       if(beam_list[i][r] == true)
       {
-        for(double range = grid_map.ranges[r-1]; range < grid_map.ranges[r+1]; range += resolution_)
+        double start_range = (grid_map.ranges[r-1] + grid_map.ranges[r])/2;
+        double end_range = (grid_map.ranges[r] + grid_map.ranges[r+1])/2;
+        for(double range = start_range; range < end_range; range += resolution_)
         {
           double x = range * c;
           double y = range * s;
@@ -152,39 +154,6 @@ void ROSHandler::pointcloudCallback(const pcl::PointCloud<ouster::Point>::ConstP
   std::vector<signed char> occ_points(grid_map.cell_num_x * grid_map.cell_num_y);
   // initialize grid vectors: -1 as unknown
   for (auto& p : occ_points){p = -1;}
-
-  // for (const auto& out_point : input_cloud->points)
-  // {
-  //   int longitudinal_offset = grid_map.get_Offset(out_point.ring);
-
-  //   std::vector<int> indexes_to_fill = getOffset_indexes(longitudinal_offset,out_point);
-  //   for(const auto& index : indexes_to_fill)
-  //   {
-  //     if (index < occ_points.size()){
-  //       occ_points[index] = out_point.intensity * grid_map.intensity_factor;
-  //     }
-  //   }
-
-  // }
-
-  // for (const auto& out_point : obstacle_points->points)
-  // {
-  //   int index = getIndex(out_point.x, out_point.y);
-    
-  //   if (index < occ_points.size())
-  //     occ_points[index] = 100;
-  // }
-  
-
-  // for(float i = 0;i > -5;i -= grid_map.cell_size)
-  // {
-  //   for(float j = -1.5;j < 1.5;j += grid_map.cell_size)
-  //   {
-  //     int index = getIndex(i,j);
-  //     if (index < occ_points.size())
-  //       occ_points[index] = 0;
-  //   }
-  // }
 
   double beam_num_ = config.beam_number;
   std::vector<std::vector<bool>> beam_list(beam_num_, std::vector<bool>(grid_map.ranges.size(), false));
