@@ -1,15 +1,25 @@
 #pragma once
 #include <ros/ros.h>
 #include <nav_msgs/OccupancyGrid.h>
-#include <sensor_msgs/PointCloud.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <pcl/PCLPointCloud2.h>
-#include <pcl/conversions.h>
-#include <pcl_ros/point_cloud.h>
+#include <std_msgs/Float32.h>
 #include <pointcloud_to_grid/pointcloud_to_grid_core.hpp>
 #include <pointcloud_to_grid/point.h>
 #include <pointcloud_to_grid/MyParamsConfig.h>
 #include <dynamic_reconfigure/server.h>
+#include <tf2/utils.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_eigen/tf2_eigen.h>
+
+// PCL
+#include <sensor_msgs/PointCloud2.h>
+#include <pcl_ros/transforms.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types_conversion.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/visualization/cloud_viewer.h>
 
 
 class PointXY{
@@ -26,6 +36,17 @@ public:
   double intensity;
 };
 
+struct GlobalPoint
+{
+  geometry_msgs::Point point;
+  signed char occupancy;
+  float distance;
+};
+
+typedef pcl::PointXYZ PointXYZ;
+typedef pcl::PointCloud<PointXYZ> CloudXYZIN;
+typedef pcl::PointCloud<PointXYZ>::Ptr CloudXYZINPtr;
+
 class GridMap{
   public: 
     float position_x;
@@ -33,6 +54,7 @@ class GridMap{
     float cell_size;
     float length_x;
     float length_y;
+    int grid_width;
     std::string cloud_in_topic;
     std::string frame_out;
     std::string mapi_topic_name;
@@ -72,6 +94,7 @@ class GridMap{
       bottomright_y = position_y - length_y / 2;
       cell_num_x = int(length_x / cell_size);
       cell_num_y = int(length_y / cell_size);
+      grid_width = length_x / cell_size;
       if(cell_num_x > 0){
         ROS_INFO_STREAM("Cells: " << cell_num_x << "*" << cell_num_y << "px, subscribed to " << GridMap::cloud_in_topic << " [" << topleft_x << ", " << topleft_y << "]" << " [" << bottomright_x << ", " << bottomright_y << "]");
       }
@@ -107,6 +130,11 @@ class GridMap{
       return cell_size;
     }
 
+    double get_occupancy(float log_odds)
+    {
+        return 1.0 / (1 + exp(log_odds));
+    }
+
     float get_Offset(int ring);
 };
 
@@ -114,7 +142,7 @@ class ROSHandler
 {
   public:
 
-    ros::Subscriber pc_road_sub,pc_obstacle_sub;
+    ros::Subscriber pc_road_sub,pc_obstacle_sub,distance_sub;
     ros::Publisher occupancy_grid_pub;
 
     pcl::PointCloud<ouster::Point>::ConstPtr obstacle_points;
@@ -122,18 +150,32 @@ class ROSHandler
     dynamic_reconfigure::Server<my_dyn_rec::MyParamsConfig> dr_srv_;
 
     GridMap grid_map;
+    float distance_covered;
+
+    std::vector<GlobalPoint> global_occ;
+
+    tf2_ros::Buffer tf_buffer_;
+    tf2_ros::TransformListener listener_;
 
     my_dyn_rec::MyParamsConfig config;
 
-    void pointcloudCallback(const pcl::PointCloud<ouster::Point>::ConstPtr input_cloud);
+    void pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input_cloud);
     void obstaclePointsCallback(const pcl::PointCloud<ouster::Point>::ConstPtr input_cloud);
+    void distance_callback(const std_msgs::Float32 distance_c)
+    {
+      distance_covered = distance_c.data;
+    }
 
     int getIndex(double x, double y);
 
     ROSHandler(ros::NodeHandlePtr);
     void paramsCallback(my_dyn_rec::MyParamsConfig &config, uint32_t level);
     std::vector<int> getOffset_indexes(int offset_to_make,auto out_point);
-    void getBeams(auto &beam_list,double beam_num_,const pcl::PointCloud<ouster::Point>::ConstPtr input_cloud);
+    void getBeams(auto &beam_list,double beam_num_,const auto input_cloud);
     void set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<signed char> &map,double beam_num_,double resolution_);
+    void occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map);
+    void global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map);
+    geometry_msgs::Point index_to_point(int index);
+
 
 };

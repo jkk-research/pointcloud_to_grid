@@ -16,9 +16,11 @@ add_definitions(${PCL_DEFINITIONS})
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   sensor_msgs
+  std_msgs
   nav_msgs
   pcl_ros
   roscpp
+  tf2
 )
 
 
