@@ -172,9 +172,9 @@ class ROSHandler
     void paramsCallback(my_dyn_rec::MyParamsConfig &config, uint32_t level);
     std::vector<int> getOffset_indexes(int offset_to_make,auto out_point);
     void getBeams(auto &beam_list,double beam_num_,const auto input_cloud);
-    void set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<signed char> &map,double beam_num_,double resolution_);
-    void occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map);
-    void global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map);
+    void set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<signed char> &map,double beam_num_,double resolution_,std::vector<float> &occ_distances);
+    void occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances);
+    void global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances);
     geometry_msgs::Point index_to_point(int index);
 
 

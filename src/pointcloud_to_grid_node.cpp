@@ -37,7 +37,7 @@ geometry_msgs::Point ROSHandler::index_to_point(int index)
 
 }
 
-void ROSHandler::occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map)
+void ROSHandler::occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances)
 {
   geometry_msgs::Point current_point,point_global;
   GlobalPoint g_point;
@@ -48,31 +48,31 @@ void ROSHandler::occ_to_global(geometry_msgs::TransformStamped &transform,std::v
     tf2::doTransform(current_point,point_global,transform);
     g_point.point = point_global;
     g_point.occupancy = occ_map[i];
-    g_point.distance = distance_covered;
+    g_point.distance = occ_distances[i];
     global_occ.push_back(g_point);
   }
 
 }
 
-void ROSHandler::global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map)
+void ROSHandler::global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances)
 {
   geometry_msgs::Point point_local;
 
   for(const auto &point : global_occ)
   {
-    tf2::doTransform(point.point,point_local,transform);
-    int index = getIndex(point_local.x,point_local.y);
+    if((distance_covered - point.distance) < config.distance_covered_confidence)
+    {
+      tf2::doTransform(point.point,point_local,transform);
+      int index = getIndex(point_local.x,point_local.y);
 
-    if(index < occ_map.size())
-      occ_map[index] = point.occupancy;
+      if(index < occ_map.size())
+      {
+        occ_map[index] = point.occupancy;
+        occ_distances[index] = point.distance;
+      }
+    }
   }
   global_occ.clear();
-
-  for(int i = 0; i < global_occ.size();i++)
-  {
-    if(distance_covered - global_occ[i].distance > 20.0)
-      global_occ.erase(global_occ.begin() + i); 
-  }
 }
 
 std::vector<int> ROSHandler::getOffset_indexes(int offset_to_make,auto out_point)
@@ -162,7 +162,7 @@ void ROSHandler::getBeams(auto &beam_list,double beam_num_,const auto input_clou
     }
   }
 }
-void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<signed char> &map,double beam_num_,double resolution_)
+void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<signed char> &map,double beam_num_,double resolution_,std::vector<float> &occ_distances)
 {
   const double beam_angle_resolution = 2.0 * M_PI / (double)beam_num_;
   for(int i = 0;i < beam_num_; i++)
@@ -185,7 +185,10 @@ void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<
           const int index = getIndex(x, y);
 
           if(index < map.size())
+          {
             map[index] = 0;
+            occ_distances[index] = distance_covered;
+          }
         }
       }
     }
@@ -222,6 +225,7 @@ void ROSHandler::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input
   }
 
   std::vector<signed char> occ_points(grid_map.cell_num_x * grid_map.cell_num_y);
+  std::vector<float> occ_distances(grid_map.cell_num_x * grid_map.cell_num_y);
   // initialize grid vectors: -1 as unknown
   for (auto& p : occ_points){p = -1;}
 
@@ -238,10 +242,10 @@ void ROSHandler::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input
     return;
   }
 
-  global_to_occ(transform,occ_points);
+  global_to_occ(transform,occ_points,occ_distances);
 
   getBeams(beam_list,beam_num_,cloud_ptr);
-  set_map_cells_in_grid(beam_list,obstacle_indices,occ_points,beam_num_,grid_map.cell_size/2);
+  set_map_cells_in_grid(beam_list,obstacle_indices,occ_points,beam_num_,grid_map.cell_size/2,occ_distances);
 
   try
   {
@@ -251,7 +255,7 @@ void ROSHandler::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input
     return;
   }
 
-  occ_to_global(transform,occ_points);
+  occ_to_global(transform,occ_points,occ_distances);
 
   occupancyGrid_msg.header.stamp = ros::Time::now();
   occupancyGrid_msg.header.frame_id = "base_link";
