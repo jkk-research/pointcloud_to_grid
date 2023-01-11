@@ -130,11 +130,6 @@ class GridMap{
       return cell_size;
     }
 
-    double get_occupancy(float log_odds)
-    {
-        return 1.0 / (1 + exp(log_odds));
-    }
-
     float get_Offset(int ring);
 };
 
@@ -168,13 +163,19 @@ class ROSHandler
 
     int getIndex(double x, double y);
 
+    double get_occupancy(double log_odds)
+    {
+      if(log_odds == -1) return -0.01;
+      return 1.0 / (1 + exp(log_odds));
+    }
+
     ROSHandler(ros::NodeHandlePtr);
     void paramsCallback(my_dyn_rec::MyParamsConfig &config, uint32_t level);
     std::vector<int> getOffset_indexes(int offset_to_make,auto out_point);
     void getBeams(auto &beam_list,double beam_num_,const auto input_cloud);
-    void set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<signed char> &map,double beam_num_,double resolution_,std::vector<float> &occ_distances);
-    void occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances);
-    void global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances);
+    void set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<double> &map,double beam_num_,double resolution_,std::vector<float> &occ_distances);
+    void occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<double> &occ_map,std::vector<float> &occ_distances);
+    void global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<double> &occ_map,std::vector<float> &occ_distances);
     geometry_msgs::Point index_to_point(int index);
 
 

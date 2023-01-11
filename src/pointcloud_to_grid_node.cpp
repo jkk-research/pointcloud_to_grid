@@ -37,7 +37,7 @@ geometry_msgs::Point ROSHandler::index_to_point(int index)
 
 }
 
-void ROSHandler::occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances)
+void ROSHandler::occ_to_global(geometry_msgs::TransformStamped &transform,std::vector<double> &occ_map,std::vector<float> &occ_distances)
 {
   geometry_msgs::Point current_point,point_global;
   GlobalPoint g_point;
@@ -54,7 +54,7 @@ void ROSHandler::occ_to_global(geometry_msgs::TransformStamped &transform,std::v
 
 }
 
-void ROSHandler::global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<signed char> &occ_map,std::vector<float> &occ_distances)
+void ROSHandler::global_to_occ(geometry_msgs::TransformStamped &transform,std::vector<double> &occ_map,std::vector<float> &occ_distances)
 {
   geometry_msgs::Point point_local;
 
@@ -151,10 +151,10 @@ void ROSHandler::getBeams(auto &beam_list,double beam_num_,const auto input_clou
     const double distance = sqrt(p.x * p.x + p.y * p.y);
     const double direction = atan2(p.y, p.x);
     const int beam_index = (direction + M_PI) / beam_angle_resolution;
-    auto range_index = 2;
+
     for(auto i = 1;i < grid_map.ranges.size();i++)
     {
-      if(grid_map.ranges[i-1] < distance && distance < grid_map.ranges[i])
+      if(((grid_map.ranges[i-1] + grid_map.ranges[i])/2) < distance && distance < ((grid_map.ranges[i] + grid_map.ranges[i+1])/2))
       {
         if(0 <= beam_index && beam_index < beam_num_)
           beam_list[beam_index][i] = true;
@@ -162,7 +162,7 @@ void ROSHandler::getBeams(auto &beam_list,double beam_num_,const auto input_clou
     }
   }
 }
-void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<signed char> &map,double beam_num_,double resolution_,std::vector<float> &occ_distances)
+void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<bool>& obstacle_indices, std::vector<double> &map,double beam_num_,double resolution_,std::vector<float> &occ_distances)
 {
   const double beam_angle_resolution = 2.0 * M_PI / (double)beam_num_;
   for(int i = 0;i < beam_num_; i++)
@@ -172,12 +172,12 @@ void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<
     const double c = cos(direction);
     const double s = sin(direction);
 
-    for(int r = 0; r < beam_list[i].size()-1 && r < grid_map.ranges.size()-1;r++)
+    for(int r = 1; r < beam_list[i].size()-1 && r < grid_map.ranges.size()-1;r++)
     {
       if(beam_list[i][r] == true)
       {
-        double start_range = (grid_map.ranges[r-1] + grid_map.ranges[r])/2;
-        double end_range = (grid_map.ranges[r] + grid_map.ranges[r+1])/2;
+        double start_range = grid_map.ranges[r-1];
+        double end_range = grid_map.ranges[r];
         for(double range = start_range; range < end_range; range += resolution_)
         {
           double x = range * c;
@@ -186,7 +186,11 @@ void ROSHandler::set_map_cells_in_grid(const auto &beam_list, const std::vector<
 
           if(index < map.size())
           {
-            map[index] = 0;
+            if(map[index] == -1)
+              map[index] = 0;
+            else
+              map[index] += config.log_odds_increase;
+
             occ_distances[index] = distance_covered;
           }
         }
@@ -215,16 +219,16 @@ void ROSHandler::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input
 
   try{
       geometry_msgs::TransformStamped transform;
-      transform = tf_buffer_.lookupTransform("base_link", cloud_ptr->header.frame_id, ros::Time(0));
+      transform = tf_buffer_.lookupTransform(cloud_ptr->header.frame_id, cloud_ptr->header.frame_id, ros::Time(0));
       const Eigen::Matrix4d mat = tf2::transformToEigen(transform.transform).matrix().cast<double>();
       pcl::transformPointCloud(*cloud_ptr, *cloud_ptr, mat);
-    cloud_ptr->header.frame_id = "base_link";
+    // cloud_ptr->header.frame_id = cloud_ptr->header.frame_id;
     }catch(tf2::TransformException& ex){
       std::cout << ex.what() << std::endl;
       return;
   }
 
-  std::vector<signed char> occ_points(grid_map.cell_num_x * grid_map.cell_num_y);
+  std::vector<double> occ_points(grid_map.cell_num_x * grid_map.cell_num_y);
   std::vector<float> occ_distances(grid_map.cell_num_x * grid_map.cell_num_y);
   // initialize grid vectors: -1 as unknown
   for (auto& p : occ_points){p = -1;}
@@ -236,11 +240,12 @@ void ROSHandler::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input
   geometry_msgs::TransformStamped transform;
   try
   {
-    transform = tf_buffer_.lookupTransform("base_link", "odom", ros::Time(0));
+    transform = tf_buffer_.lookupTransform(cloud_ptr->header.frame_id, "odom", ros::Time(0));
   }catch(tf2::TransformException& ex){
     std::cout << ex.what() << std::endl;
     return;
   }
+
 
   global_to_occ(transform,occ_points,occ_distances);
 
@@ -249,7 +254,7 @@ void ROSHandler::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input
 
   try
   {
-    transform = tf_buffer_.lookupTransform("odom", "base_link", ros::Time(0));
+    transform = tf_buffer_.lookupTransform("odom", cloud_ptr->header.frame_id, ros::Time(0));
   }catch(tf2::TransformException& ex){
     std::cout << ex.what() << std::endl;
     return;
@@ -258,9 +263,13 @@ void ROSHandler::pointcloudCallback(const sensor_msgs::PointCloud2ConstPtr input
   occ_to_global(transform,occ_points,occ_distances);
 
   occupancyGrid_msg.header.stamp = ros::Time::now();
-  occupancyGrid_msg.header.frame_id = "base_link";
+  occupancyGrid_msg.header.frame_id = cloud_ptr->header.frame_id;
   occupancyGrid_msg.info.map_load_time = ros::Time::now();
-  occupancyGrid_msg.data = occ_points;
+  occupancyGrid_msg.data.resize(occ_points.size());
+  for(int i = 0;i < occ_points.size();i++)
+  {
+    occupancyGrid_msg.data[i] = get_occupancy(occ_points[i]) * 100;
+  }
   occupancy_grid_pub.publish(occupancyGrid_msg);
 }
 
