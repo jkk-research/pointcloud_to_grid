@@ -5,7 +5,7 @@ This package converts `sensor_msgs/PointCloud2` LIDAR data to `nav_msgs/Occupanc
 ## Build
 ```
 cd ~/catkin_ws/src 
-git clone https://github.com/jkk-research/pointcloud_to_grid
+git clone https://github.com/jkk-research/pointcloud_to_grid  -b ros1
 catkin build pointcloud_to_grid
 ```
 Don't foget to `source ~/catkin_ws/devel/setup.bash`. *Note*: [`catkin tools`](https://catkin-tools.readthedocs.io/en/latest/verbs/catkin_build.html) is recommended, but `catkin_make` also works.
