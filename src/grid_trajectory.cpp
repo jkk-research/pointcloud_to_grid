@@ -11,6 +11,7 @@
 #include <pcl/filters/crop_box.h>
 // ROS package
 #include <pointcloud_to_grid/pointcloud_to_grid_core.hpp>
+#include <pointcloud_to_grid/trajectory.hpp>
 // c++
 #include <chrono>
 #include <functional>
@@ -131,11 +132,24 @@ public:
   }
 
 private:
-  void
-  lidar_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr input_msg)
+  pcl::PointCloud<pcl::PointXYZI>::Ptr crop_pcl(pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud_in, double min_x_, double min_y_, double max_x_, double max_y_)
+  {
+    pcl::CropBox<pcl::PointXYZI> crop_fwd;
+    crop_fwd.setInputCloud(cloud_in);
+    crop_fwd.setMin(Eigen::Vector4f(min_x_, min_y_, -2.0, 1.0));
+    crop_fwd.setMax(Eigen::Vector4f(max_x_, max_y_, -0.2, 1.0));
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZI>);
+    crop_fwd.filter(*cloud_cropped);
+    // RCLCPP_INFO_STREAM(this->get_logger(), "crop_fwd: " << cloud_cropped->width * cloud_cropped->height);
+    return cloud_cropped;
+  }
+
+  void lidar_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr input_msg)
   {
     pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud(new pcl::PointCloud<pcl::PointXYZI>);
     pcl::fromROSMsg(*input_msg, *out_cloud);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filt(new pcl::PointCloud<pcl::PointXYZI>);
+    cloud_filt = crop_pcl(out_cloud, -80.0, -25.0, +80.0, +25.0); // cloud, min_x, min_y, max_x, max_y
     // Initialize grid
     grid_map.initGrid(intensity_grid);
     grid_map.initGrid(height_grid);
@@ -153,7 +167,7 @@ private:
     {
       p = -128;
     }
-    for (pcl::PointXYZI p : out_cloud->points)
+    for (pcl::PointXYZI p : cloud_filt->points)
     {
       if (p.x > 0.01 || p.x < -0.01)
       {
@@ -175,7 +189,10 @@ private:
         }
       }
     }
-
+    // just experimenting with drawing lines
+    drawline(hpoints, grid_map.cell_num_x, 0, 60, 10, 75);
+    drawline(hpoints, grid_map.cell_num_x, 0, 60, 14, 65);
+    drawline(hpoints, grid_map.cell_num_x, 0, 60, 10, 45);
     intensity_grid->header.stamp = this->now();
     intensity_grid->header.frame_id = input_msg->header.frame_id;
     intensity_grid->info.map_load_time = this->now();
@@ -188,7 +205,8 @@ private:
     pub_hgrid->publish(*height_grid);
     pub_igrid->publish(*intensity_grid);
     // pub_hgrid->publish(height_grid);
-    if (verbose1){
+    if (verbose1)
+    {
       RCLCPP_INFO_STREAM(this->get_logger(), "Published " << grid_map.mapi_topic_name.c_str() << " and " << grid_map.maph_topic_name.c_str());
     }
   }

@@ -4,6 +4,8 @@ This package converts `sensor_msgs/PointCloud2` LIDAR data to `nav_msgs/Occupanc
 
 [![Static Badge](https://img.shields.io/badge/ROS_2-Humble-34aec5)](https://docs.ros.org/en/humble/)
 
+If you would like to use ROS 1 version (melodic, noetic), please go to [`ROS1` branch](https://github.com/jkk-research/pointcloud_to_grid/tree/ros1).
+
 ## Build
 ```
 cd ~/ros2_ws/src 
@@ -45,6 +47,10 @@ ros2 bag play -l ~/Downloads/leaf-2021-04-23-campus.bag
 Start the algorithm in a **new terminal** :
 ```r
 ros2 launch pointcloud_to_grid demo.launch.py
+```
+Alternatively, start with subscribing to `/my_custom_cloud_topic`:
+```r
+ros2 launch pointcloud_to_grid demo.launch.py topic:=my_custom_cloud_topic
 ```
 
 Start the visualization in a **new terminal** :

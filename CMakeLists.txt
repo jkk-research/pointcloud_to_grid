@@ -60,6 +60,11 @@ ament_target_dependencies(pointcloud_to_grid_node  ${ament_dependencies} )
 target_compile_features(pointcloud_to_grid_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
 
+add_executable(grid_trajectory src/grid_trajectory.cpp)
+target_link_libraries(grid_trajectory ${PCL_LIBRARIES})
+ament_target_dependencies(grid_trajectory  ${ament_dependencies} )
+target_compile_features(grid_trajectory PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+
 install(DIRECTORY 
   launch
   doc
@@ -67,6 +72,7 @@ install(DIRECTORY
 
 install(TARGETS 
   pointcloud_to_grid_node
+  grid_trajectory
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

@@ -1,6 +1,7 @@
 #pragma once
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
+#include <memory>
 class PointXY{
 public: 
   int x;
@@ -36,8 +37,7 @@ class GridMap{
     float height_factor;
 
 
-
-    void initGrid(nav_msgs::msg::OccupancyGrid::Ptr grid) {
+    void initGrid(std::shared_ptr<nav_msgs::msg::OccupancyGrid> grid) {
       //grid->header.seq = 1;
       grid->header.frame_id = GridMap::frame_out; // TODO
       grid->info.origin.position.z = 0;
@@ -61,7 +61,7 @@ class GridMap{
       cell_num_x = int(length_x / cell_size);
       cell_num_y = int(length_y / cell_size);
       if(cell_num_x > 0){
-        RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"), "Cells: " << cell_num_x << "*" << cell_num_y << "px, subscribed to " << GridMap::cloud_in_topic << " [" << topleft_x << ", " << topleft_y << "]" << " [" << bottomright_x << ", " << bottomright_y << "]");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("rclcpp"), "Cells: " << cell_num_x << "*" << cell_num_y << "px [" << topleft_x << ", " << topleft_y << "]" << " [" << bottomright_x << ", " << bottomright_y << "]");
       }
     }
 
