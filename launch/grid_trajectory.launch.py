@@ -20,7 +20,7 @@ def generate_launch_description():
                 {'position_y': 0.0},
                 {'verbose1': False},
                 {'verbose2': False},
-                {'cell_size': 0.5},
+                {'cell_size': 0.8},
                 {'length_x': 40.0},
                 {'length_y': 60.0},
                 #{'frame_out': 'os1_sensor'},

@@ -161,7 +161,7 @@ private:
         {
           if (p.y > grid_map.bottomright_y && p.y < grid_map.topleft_y)
           {
-            PointXY cell = getIndex(p.x, p.y);
+            PointXY cell = grid_map.getIndex(p.x, p.y);
             if (cell.x < grid_map.cell_num_x && cell.y < grid_map.cell_num_y)
             {
               ipoints[cell.y * grid_map.cell_num_x + cell.x] = p.intensity * grid_map.intensity_factor;
@@ -191,14 +191,6 @@ private:
     if (verbose1){
       RCLCPP_INFO_STREAM(this->get_logger(), "Published " << grid_map.mapi_topic_name.c_str() << " and " << grid_map.maph_topic_name.c_str());
     }
-  }
-
-  PointXY getIndex(double x, double y)
-  {
-    PointXY ret;
-    ret.x = int(fabs(x - grid_map.topleft_x) / grid_map.cell_size);
-    ret.y = int(fabs(y - grid_map.topleft_y) / grid_map.cell_size);
-    return ret;
   }
 
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pub_igrid, pub_hgrid;

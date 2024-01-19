@@ -3,6 +3,7 @@
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "sensor_msgs/msg/point_cloud.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 // PCL
 #include <pcl/point_cloud.h>
@@ -12,6 +13,7 @@
 // ROS package
 #include <pointcloud_to_grid/pointcloud_to_grid_core.hpp>
 #include <pointcloud_to_grid/trajectory.hpp>
+#include <pointcloud_to_grid/marker.hpp>
 // c++
 #include <chrono>
 #include <functional>
@@ -85,6 +87,18 @@ class PointCloudToGrid : public rclcpp::Node
       {
         verbose2 = param.as_bool();
       }
+      if (param.get_name() == "search_range_deg")
+      {
+        search_range_deg = param.as_double();
+      }
+      if (param.get_name() == "search_resolution_deg")
+      {
+        search_resolution_deg = param.as_double();
+      }
+      if (param.get_name() == "search_start_mid_deg")
+      {
+        search_start_mid_deg = param.as_double();
+      }
       // grid_map.frame_out = config.frame_out;
       grid_map.paramRefresh();
     }
@@ -106,6 +120,9 @@ public:
     this->declare_parameter<float>("height_factor", 1.0);
     this->declare_parameter<bool>("verbose1", verbose1);
     this->declare_parameter<bool>("verbose2", verbose2);
+    this->declare_parameter<double>("search_range_deg", search_range_deg);
+    this->declare_parameter<double>("search_resolution_deg", search_resolution_deg);
+    this->declare_parameter<double>("search_start_mid_deg", search_start_mid_deg);
 
     this->get_parameter("mapi_topic_name", grid_map.mapi_topic_name);
     this->get_parameter("maph_topic_name", grid_map.maph_topic_name);
@@ -119,11 +136,15 @@ public:
     this->get_parameter("height_factor", grid_map.height_factor);
     this->get_parameter("verbose1", verbose1);
     this->get_parameter("verbose2", verbose2);
+    this->get_parameter("search_range_deg", search_range_deg);
+    this->get_parameter("search_resolution_deg", search_resolution_deg);
+    this->get_parameter("search_start_mid_deg", search_start_mid_deg);
 
     grid_map.paramRefresh();
 
     pub_igrid = this->create_publisher<nav_msgs::msg::OccupancyGrid>(grid_map.mapi_topic_name, 10);
     pub_hgrid = this->create_publisher<nav_msgs::msg::OccupancyGrid>(grid_map.maph_topic_name, 10);
+    pub_marker = this->create_publisher<visualization_msgs::msg::MarkerArray>("debug_marker", 10);
     sub_pc2_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(cloud_in_topic, 10, std::bind(&PointCloudToGrid::lidar_callback, this, std::placeholders::_1));
     callback_handle_ = this->add_on_set_parameters_callback(std::bind(&PointCloudToGrid::parametersCallback, this, std::placeholders::_1));
     RCLCPP_INFO_STREAM(this->get_logger(), "pointcloud_to_grid_node has been started.");
@@ -175,11 +196,11 @@ private:
         {
           if (p.y > grid_map.bottomright_y && p.y < grid_map.topleft_y)
           {
-            PointXY cell = getIndex(p.x, p.y);
+            PointXY cell = grid_map.getIndex(p.x, p.y);
             if (cell.x < grid_map.cell_num_x && cell.y < grid_map.cell_num_y)
             {
-              ipoints[cell.y * grid_map.cell_num_x + cell.x] = p.intensity * grid_map.intensity_factor;
-              hpoints[cell.y * grid_map.cell_num_x + cell.x] = p.z * grid_map.height_factor;
+              ipoints[cell.y * grid_map.cell_num_x + cell.x] = char(p.intensity * grid_map.intensity_factor);
+              hpoints[cell.y * grid_map.cell_num_x + cell.x] = +99; //char(p.z * grid_map.height_factor);
             }
             else
             {
@@ -190,9 +211,56 @@ private:
       }
     }
     // just experimenting with drawing lines
-    drawline(hpoints, grid_map.cell_num_x, 0, 60, 10, 75);
-    drawline(hpoints, grid_map.cell_num_x, 0, 60, 14, 65);
-    drawline(hpoints, grid_map.cell_num_x, 0, 60, 10, 45);
+    double search_range = search_range_deg * M_PI / 180;
+    double search_resolution = search_resolution_deg * M_PI / 180;
+    double search_start_mid = search_start_mid_deg * M_PI / 180;
+    int loop_increment = int(search_range / search_resolution);
+    std::vector<bool> search_results(loop_increment);
+    double x_start = -0.6;
+    double y_start = 0.0;
+    double length = 10.0;
+    for (int loop = 0; loop < loop_increment; loop++)
+    {
+      double search_ang = -0.5 * search_range + double(loop) * search_resolution;
+      search_results[loop] = grid_map.drawline(hpoints, x_start, y_start, search_start_mid + search_ang, length);
+    }
+    // find the longest continous true (free) segment in search_results
+    int max_true = 0;
+    int max_true_start = 0;
+    int max_true_end = 0;
+    int true_start = 0;
+    int true_end = 0;
+    for (int loop = 0; loop < loop_increment; loop++)
+    {
+      if (search_results[loop])
+      {
+        true_end = loop;
+        if (true_end - true_start > max_true)
+        {
+          max_true = true_end - true_start;
+          max_true_start = true_start;
+          max_true_end = true_end;
+        }
+      }
+      else
+      {
+        true_start = loop;
+      }
+    }
+
+    // RCLCPP_INFO_STREAM(this->get_logger(), "max_true: " << max_true << " max_true_start: " << max_true_start << " max_true_end: " << max_true_end);
+    int max_true_center = (max_true_start + max_true_start)/2;
+    double max_true_angle = -0.5 * search_range + search_start_mid + double(max_true_center) * search_resolution;
+
+    double x_end = x_start + length * cos(max_true_angle);
+    double y_end = y_start + length * sin(max_true_angle);
+
+    visualization_msgs::msg::MarkerArray mark_array;
+    visualization_msgs::msg::Marker debug1_marker;
+    init_debug_marker(debug1_marker, x_end, y_end, 1);
+    debug1_marker.header.frame_id = input_msg->header.frame_id;
+    debug1_marker.header.stamp = this->now();
+    mark_array.markers.push_back(debug1_marker);
     intensity_grid->header.stamp = this->now();
     intensity_grid->header.frame_id = input_msg->header.frame_id;
     intensity_grid->info.map_load_time = this->now();
@@ -204,6 +272,7 @@ private:
 
     pub_hgrid->publish(*height_grid);
     pub_igrid->publish(*intensity_grid);
+    pub_marker->publish(mark_array);
     // pub_hgrid->publish(height_grid);
     if (verbose1)
     {
@@ -211,23 +280,18 @@ private:
     }
   }
 
-  PointXY getIndex(double x, double y)
-  {
-    PointXY ret;
-    ret.x = int(fabs(x - grid_map.topleft_x) / grid_map.cell_size);
-    ret.y = int(fabs(y - grid_map.topleft_y) / grid_map.cell_size);
-    return ret;
-  }
-
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pub_igrid, pub_hgrid;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_marker;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_pc2_;
   OnSetParametersCallbackHandle::SharedPtr callback_handle_;
   std::string cloud_in_topic = "nonground";
   bool verbose1 = true, verbose2 = false;
+  double search_range_deg = 120, search_resolution_deg = 10, search_start_mid_deg = -180; 
   // nav_msgs::msg::OccupancyGrid::Ptr intensity_grid = std::make_shared<nav_msgs::msg::OccupancyGrid>();
   // nav_msgs::msg::OccupancyGrid::Ptr intensity_grid(new nav_msgs::msg::OccupancyGrid);
   // nav_msgs::msg::OccupancyGrid::Ptr height_grid = std::make_shared<nav_msgs::msg::OccupancyGrid>();
-  GridMap grid_map;
+  GridMapTrajectory grid_map;
+
   size_t count_;
 };
 int main(int argc, char **argv)
