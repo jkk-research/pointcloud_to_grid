@@ -1,6 +1,7 @@
 // ROS
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
+#include "grid_map_msgs/msg/grid_map.hpp"
 #include "sensor_msgs/msg/point_cloud.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
@@ -23,6 +24,8 @@
 // nav_msgs::msg::OccupancyGrid::Ptr height_grid(new nav_msgs::msg::OccupancyGrid);
 auto height_grid = std::make_shared<nav_msgs::msg::OccupancyGrid>();
 auto intensity_grid = std::make_shared<nav_msgs::msg::OccupancyGrid>();
+auto height_gridmap = std::make_shared<grid_map_msgs::msg::GridMap>();
+auto intensity_gridmap = std::make_shared<grid_map_msgs::msg::GridMap>();
 class PointCloudToGrid : public rclcpp::Node
 {
   rcl_interfaces::msg::SetParametersResult parametersCallback(const std::vector<rclcpp::Parameter> &parameters)
@@ -43,10 +46,24 @@ class PointCloudToGrid : public rclcpp::Node
         grid_map.maph_topic_name = param.as_string();
         pub_hgrid = this->create_publisher<nav_msgs::msg::OccupancyGrid>(grid_map.maph_topic_name, 10);
       }
+      if (param.get_name() == "mapi_gridmap_topic_name")
+      {
+        grid_map.mapi_gridmap_topic_name = param.as_string();
+        pub_igridmap = this->create_publisher<grid_map_msgs::msg::GridMap>(grid_map.mapi_gridmap_topic_name, 10);
+      }
+      if (param.get_name() == "maph_gridmap_topic_name")
+      {
+        grid_map.maph_gridmap_topic_name = param.as_string();
+        pub_hgridmap = this->create_publisher<grid_map_msgs::msg::GridMap>(grid_map.maph_gridmap_topic_name, 10);
+      }
       if (param.get_name() == "cloud_in_topic")
       {
         cloud_in_topic = param.as_string();
-        sub_pc2_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(cloud_in_topic, 10, std::bind(&PointCloudToGrid::lidar_callback, this, std::placeholders::_1));
+        // Configure QoS for sensor data - use BEST_EFFORT reliability to match typical sensor publishers
+        auto sensor_qos = rclcpp::QoS(10).reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+        sub_pc2_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            cloud_in_topic, sensor_qos, 
+            std::bind(&PointCloudToGrid::lidar_callback, this, std::placeholders::_1));
       }
       if (param.get_name() == "cell_size")
       {
@@ -95,6 +112,8 @@ public:
   {
     this->declare_parameter<std::string>("mapi_topic_name", "intensity_grid");
     this->declare_parameter<std::string>("maph_topic_name", "height_grid");
+    this->declare_parameter<std::string>("mapi_gridmap_topic_name", "intensity_gridmap");
+    this->declare_parameter<std::string>("maph_gridmap_topic_name", "height_gridmap");
     this->declare_parameter<std::string>("cloud_in_topic", cloud_in_topic);
     this->declare_parameter<float>("cell_size", 0.5);
     this->declare_parameter<float>("position_x", 0.0);
@@ -108,6 +127,8 @@ public:
 
     this->get_parameter("mapi_topic_name", grid_map.mapi_topic_name);
     this->get_parameter("maph_topic_name", grid_map.maph_topic_name);
+    this->get_parameter("mapi_gridmap_topic_name", grid_map.mapi_gridmap_topic_name);
+    this->get_parameter("maph_gridmap_topic_name", grid_map.maph_gridmap_topic_name);
     this->get_parameter("cloud_in_topic", cloud_in_topic);
     this->get_parameter("cell_size", grid_map.cell_size);
     this->get_parameter("position_x", grid_map.position_x);
@@ -123,11 +144,19 @@ public:
 
     pub_igrid = this->create_publisher<nav_msgs::msg::OccupancyGrid>(grid_map.mapi_topic_name, 10);
     pub_hgrid = this->create_publisher<nav_msgs::msg::OccupancyGrid>(grid_map.maph_topic_name, 10);
-    sub_pc2_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(cloud_in_topic, 10, std::bind(&PointCloudToGrid::lidar_callback, this, std::placeholders::_1));
+    pub_igridmap = this->create_publisher<grid_map_msgs::msg::GridMap>(grid_map.mapi_gridmap_topic_name, 10);
+    pub_hgridmap = this->create_publisher<grid_map_msgs::msg::GridMap>(grid_map.maph_gridmap_topic_name, 10);
+    
+    // Configure QoS for sensor data - use BEST_EFFORT reliability to match typical sensor publishers
+    auto sensor_qos = rclcpp::QoS(10).reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+    sub_pc2_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+        cloud_in_topic, sensor_qos, 
+        std::bind(&PointCloudToGrid::lidar_callback, this, std::placeholders::_1));
     callback_handle_ = this->add_on_set_parameters_callback(std::bind(&PointCloudToGrid::parametersCallback, this, std::placeholders::_1));
     RCLCPP_INFO_STREAM(this->get_logger(), "pointcloud_to_grid_node has been started.");
     RCLCPP_INFO_STREAM(this->get_logger(), "Subscribing to: " << cloud_in_topic.c_str());
     RCLCPP_INFO_STREAM(this->get_logger(), "Publishing to: " << grid_map.mapi_topic_name.c_str() << " and " << grid_map.maph_topic_name.c_str());
+    RCLCPP_INFO_STREAM(this->get_logger(), "Publishing GridMaps to: " << grid_map.mapi_gridmap_topic_name.c_str() << " and " << grid_map.maph_gridmap_topic_name.c_str());
   }
 
 private:
@@ -139,6 +168,8 @@ private:
     // Initialize grid
     grid_map.initGrid(intensity_grid);
     grid_map.initGrid(height_grid);
+    grid_map.initGridMap(intensity_gridmap, "intensity");
+    grid_map.initGridMap(height_gridmap, "height");
     // width*height/cell_size^2 eg width = 20m, height = 30m, cell_size data size = 6000
     // or cell_num_x * cell_num_ys
     // -128 127 int8[] data
@@ -185,8 +216,23 @@ private:
     height_grid->info.map_load_time = this->now();
     height_grid->data = hpoints;
 
+    // Convert to GridMap format
+    intensity_gridmap->header.stamp = this->now();
+    intensity_gridmap->header.frame_id = input_msg->header.frame_id;
+    for (size_t i = 0; i < ipoints.size(); ++i) {
+      intensity_gridmap->data[0].data[i] = static_cast<float>(ipoints[i]) / 127.0f; // Normalize to float
+    }
+
+    height_gridmap->header.stamp = this->now();
+    height_gridmap->header.frame_id = input_msg->header.frame_id;
+    for (size_t i = 0; i < hpoints.size(); ++i) {
+      height_gridmap->data[0].data[i] = static_cast<float>(hpoints[i]) / 127.0f; // Normalize to float
+    }
+
     pub_hgrid->publish(*height_grid);
     pub_igrid->publish(*intensity_grid);
+    pub_hgridmap->publish(*height_gridmap);
+    pub_igridmap->publish(*intensity_gridmap);
     // pub_hgrid->publish(height_grid);
     if (verbose1){
       RCLCPP_INFO_STREAM(this->get_logger(), "Published " << grid_map.mapi_topic_name.c_str() << " and " << grid_map.maph_topic_name.c_str());
@@ -194,6 +240,7 @@ private:
   }
 
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pub_igrid, pub_hgrid;
+  rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr pub_igridmap, pub_hgridmap;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_pc2_;
   OnSetParametersCallbackHandle::SharedPtr callback_handle_;
   std::string cloud_in_topic = "nonground";

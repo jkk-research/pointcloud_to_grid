@@ -24,8 +24,12 @@ def generate_launch_description():
                 {'length_x': 40.0},  # meters
                 {'length_y': 60.0},  # meters
                 #{'frame_out': 'os1_sensor'},
+                # OccupancyGrid topics
                 {'mapi_topic_name': 'intensity_grid'},
                 {'maph_topic_name': 'height_grid'},
+                # GridMap topics
+                {'mapi_gridmap_topic_name': 'intensity_gridmap'},
+                {'maph_gridmap_topic_name': 'height_gridmap'},
                 {'search_length': 4.0}, # meters
                 {'search_range_deg': 80.0}, # degrees
                 {'search_resolution_deg': 0.5}, # degrees

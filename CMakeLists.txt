@@ -15,6 +15,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(grid_map_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_msgs REQUIRED)
@@ -36,6 +37,7 @@ set(INCLUDE_DIRS
   ${std_msgs_INCLUDE_DIRS}
   ${sensor_msgs_INCLUDE_DIRS}
   ${nav_msgs_INCLUDE_DIRS}
+  ${grid_map_msgs_INCLUDE_DIRS}
   ${rclcpp_components_INCLUDE_DIRS}
 )
 include_directories(${INCLUDE_DIRS})
@@ -46,6 +48,7 @@ set(ament_dependencies
   std_msgs
   sensor_msgs
   nav_msgs
+  grid_map_msgs
   visualization_msgs
   tf2
   tf2_msgs

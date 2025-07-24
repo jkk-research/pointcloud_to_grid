@@ -1,5 +1,5 @@
 # `pointcloud_to_grid` ROS 2 package
-This package converts `sensor_msgs/PointCloud2` LIDAR data to `nav_msgs/OccupancyGrid` 2D map data based on intensity and / or height.
+This package converts `sensor_msgs/PointCloud2` LIDAR data to both `nav_msgs/OccupancyGrid` and `grid_map_msgs/GridMap` 2D map data based on intensity and / or height.
 ![](doc/grid_map01.gif)
 
 [![Static Badge](https://img.shields.io/badge/ROS_2-Humble-34aec5)](https://docs.ros.org/en/humble/)
@@ -17,7 +17,8 @@ Don't foget to `source ~/ros2_ws/install/setup.bash`.
 
 
 ## Features
-- Few dependencies (ROS 2 and PCL mainly) [ROS installation](http://wiki.ros.org/ROS/Installation)
+- Few dependencies (ROS 2, PCL, and grid_map_msgs mainly) [ROS installation](http://wiki.ros.org/ROS/Installation)
+- **Dual output format support**: Publishes both `nav_msgs/OccupancyGrid` and `grid_map_msgs/GridMap` messages simultaneously
 - Simple as possible
 - Fast
 
@@ -57,6 +58,42 @@ Start the visualization in a **new terminal** :
 ```r
 ros2 launch pointcloud_to_grid rviz.launch.py
 ```
+
+## Dual Output Format Support
+
+The package now supports publishing both `nav_msgs/OccupancyGrid` and `grid_map_msgs/GridMap` message types simultaneously. This allows for better integration with different ROS 2 packages that may prefer one format over the other.
+
+### New Parameters
+
+In addition to the existing parameters, the following new parameters control the GridMap output topics:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mapi_gridmap_topic_name` | string | `intensity_gridmap` | Topic name for intensity GridMap |
+| `maph_gridmap_topic_name` | string | `height_gridmap` | Topic name for height GridMap |
+
+### Output Topics
+
+The node now publishes to four topics simultaneously:
+
+**OccupancyGrid format:**
+- `intensity_grid` (`nav_msgs/OccupancyGrid`)
+- `height_grid` (`nav_msgs/OccupancyGrid`)
+
+**GridMap format:**
+- `intensity_gridmap` (`grid_map_msgs/GridMap`)
+- `height_gridmap` (`grid_map_msgs/GridMap`)
+
+### Usage Example
+
+```bash
+# Launch with custom GridMap topic names
+ros2 launch pointcloud_to_grid demo.launch.py topic:=my_pointcloud mapi_gridmap_topic_name:=my_intensity_map maph_gridmap_topic_name:=my_height_map
+```
+
+## QoS Configuration
+
+The package is configured to use `BEST_EFFORT` reliability QoS policy for the input point cloud subscription. This ensures compatibility with typical LiDAR sensor publishers that often use this policy for performance reasons. This prevents QoS compatibility warnings that might appear with the default `RELIABLE` policy.
 
 
 ## Related solutions

@@ -1,6 +1,7 @@
 #pragma once
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
+#include "grid_map_msgs/msg/grid_map.hpp"
 #include <memory>
 class PointXY
 {
@@ -30,6 +31,8 @@ public:
   std::string frame_out;
   std::string mapi_topic_name;
   std::string maph_topic_name;
+  std::string mapi_gridmap_topic_name;
+  std::string maph_gridmap_topic_name;
   float topleft_x;
   float topleft_y;
   float bottomright_x;
@@ -54,6 +57,38 @@ public:
     grid->info.height = length_y / cell_size;
     grid->info.resolution = cell_size;
     // resolution/grid size [m/cell]
+  }
+
+  void initGridMap(std::shared_ptr<grid_map_msgs::msg::GridMap> grid_map_msg, const std::string& layer_name)
+  {
+    grid_map_msg->header.frame_id = GridMap::frame_out;
+    grid_map_msg->info.resolution = cell_size;
+    grid_map_msg->info.length_x = length_x;
+    grid_map_msg->info.length_y = length_y;
+    grid_map_msg->info.pose.position.x = position_x;
+    grid_map_msg->info.pose.position.y = position_y;
+    grid_map_msg->info.pose.position.z = 0.0;
+    grid_map_msg->info.pose.orientation.w = 1.0;
+    grid_map_msg->info.pose.orientation.x = 0.0;
+    grid_map_msg->info.pose.orientation.y = 0.0;
+    grid_map_msg->info.pose.orientation.z = 0.0;
+    
+    // Clear existing layers and add the new one
+    grid_map_msg->layers.clear();
+    grid_map_msg->layers.push_back(layer_name);
+    
+    // Initialize data array
+    grid_map_msg->data.clear();
+    grid_map_msg->data.resize(1); // One layer
+    grid_map_msg->data[0].layout.dim.resize(2);
+    grid_map_msg->data[0].layout.dim[0].label = "column_index";
+    grid_map_msg->data[0].layout.dim[0].size = cell_num_y;
+    grid_map_msg->data[0].layout.dim[0].stride = cell_num_x * cell_num_y;
+    grid_map_msg->data[0].layout.dim[1].label = "row_index";
+    grid_map_msg->data[0].layout.dim[1].size = cell_num_x;
+    grid_map_msg->data[0].layout.dim[1].stride = cell_num_x;
+    grid_map_msg->data[0].layout.data_offset = 0;
+    grid_map_msg->data[0].data.resize(cell_num_x * cell_num_y);
   }
 
   void paramRefresh()
